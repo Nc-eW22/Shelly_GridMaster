@@ -1,10 +1,12 @@
 # ⚡ GridMaster Pro ARMS
 
-### *A localized virtual smart-meter appliance with real utility-grade billing intelligence — running fully on-device*
+### *A Progressive Band Tariff Billing Engine for Shelly Pro EM with real utility-grade billing intelligence — running fully on-device*
 
 **GridMaster Pro ARMS** turns an everyday Shelly energy monitor into a self-contained billing engine. Written natively in mJS, it implements Malta's progressive **ARMS 5-band electricity tariff** — pro-rated bands, resident-scaled eco reductions, and daily service charges — directly on the meter, with zero cloud dependency and no companion server. The device computes its own bill and projects the result onto its native Shelly UI.
 
-Built by **SPARK_LABS** in partnership with **Recowatt Malta** — Official Shelly Distributor.
+![GridMaster Pro ARMS UI](assets/GM_UI.jpg)
+
+Built by **SPARK_LABS**.
 
 ---
 
@@ -26,7 +28,24 @@ Built by **SPARK_LABS** in partnership with **Recowatt Malta** — Official Shel
 
 Calculating electricity cost under the Malta ARMS model is notoriously awkward. The utility stacks **5 progressive consumption bands** on top of **resident-based eco-reductions** and a fixed daily service charge, with every annual threshold pro-rated dynamically by the exact number of days elapsed in the year.
 
-Standard smart meters only report raw cumulative kWh. **GridMaster Pro ARMS** closes that gap by running an embedded, real-time billing engine on the meter itself. It subscribes to the hardware's energy telemetry, maintains a rolling 30-day history, and renders an accurate financial statement onto the native Shelly app — no external servers, no cloud round-trips, no cross-device dependency.
+Standard smart meters only report raw cumulative kWh. You have no idea which pricing band you are in, how close you are to the next one, or what your bill will be until it arrives.
+
+```
+         Progressive 5-Band Tariff Structure (Annual)
+         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Band 1 │🟢██████████│  0 – 2,000 kWh      @ €0.1047/kWh
+  Band 2 │🟡██████████│  2,001 – 6,000 kWh   @ €0.1298/kWh   (+24%)
+  Band 3 │🟠██████████│  6,001 – 10,000 kWh  @ €0.1607/kWh   (+53%)
+  Band 4 │🔴██████████│  10,001 – 20,000 kWh @ €0.3420/kWh   (+227%)
+  Band 5 │⛔██████████│  > 20,000 kWh        @ €0.6076/kWh   (+480%)
+
+         Every threshold is pro-rated daily — your band boundaries
+         shift with each day of the year. GridMaster tracks this
+         in real time, on-device, with no cloud.
+```
+
+A household crossing from Band 2 into Band 3 sees a **24% price jump per unit** — and from Band 3 into Band 4 it more than doubles. Standard energy monitors give zero warning. **GridMaster Pro ARMS** closes that gap by running an embedded, real-time billing engine on the meter itself. It subscribes to the hardware's energy telemetry, maintains a rolling 30-day history, and renders an accurate financial statement onto the native Shelly app — no external servers, no cloud round-trips, no cross-device dependency.
 
 ---
 
@@ -115,7 +134,9 @@ To prove the accuracy of the mJS calculation engine, its internal mathematics ar
 
 ![Enemalta historical utility invoice — validation reference](assets/GM_BILL_EXAMPLE.jpg)
 
-### 1. Invoice Baseline Data
+---
+
+### Invoice Baseline Data
 
 * **Days in billing cycle ($d$):** $60 \text{ days}$
 * **Yearly ratio ($r$):** $\frac{60}{365} \approx 0.16438356$
@@ -123,15 +144,21 @@ To prove the accuracy of the mJS calculation engine, its internal mathematics ar
 * **Active consumption ($u$):** $1190 \text{ kWh}$
 * **Fixed service charge rate:** $\text{€}0.1781 \text{ per day}$ ($\text{€}65.00 \text{ p.a.}$)
 
-### 2. Service Charge
+---
+
+### 💶 Service Charge
 
 $$
 \text{Service Charge} = d \times 0.1781 = 60 \times 0.1781 = \text{€}10.686 \approx \text{€}10.68
 $$
 
+> 📅 60 days × 💶 €0.1781/day = **€10.68** service charge ✅
+
 *Matches the invoice line item exactly.*
 
-### 3. Progressive Band Calculations
+---
+
+### 📊 Progressive Band Calculations
 
 Annual thresholds for Malta's 5-band residential tariff, pro-rated for $60 \text{ days}$ by the yearly ratio $r$:
 
@@ -150,9 +177,16 @@ $$
 \end{aligned}
 $$
 
+> 🟢 328.8 units × €0.1047 = **€34.42** Band 1
+> 🟡 657.5 units × €0.1298 = **€85.35** Band 2
+> 🟠 203.7 units × €0.1607 = **€32.73** Band 3
+> ➕ Total energy charge = **€152.50** ✅
+
 *These allocations match the invoice lines exactly.*
 
-### 4. Eco-Reduction Discount
+---
+
+### 🌿 Eco-Reduction Discount
 
 A property with 5 registered residents qualifies for eco-reductions, calculated from pro-rated annual allowances ($1000 \text{ kWh}$ and $1750 \text{ kWh}$):
 
@@ -185,9 +219,21 @@ $$
 \text{Eco-Reduction} = \text{€}24.608 + \text{€}8.111 = \text{€}32.719 \approx \text{€}32.72
 $$
 
+> 🌿 First 821.9 units → 25% discount = **−€24.61**
+> 🌱 Next 368.1 units → 15% discount = **−€8.11**
+> 💰 Total eco-reduction = **−€32.72** ✅
+
+---
+
+### 🧾 Final Bill
+
 $$
 \text{Final Cost} = \text{€}152.50 + \text{€}10.68 - \text{€}32.72 = \text{€}130.46
 $$
+
+> 📊 Energy: €152.50 + 💶 Service: €10.68 − 🌿 Eco: €32.72 = **€130.46** ✅
+
+![GridMaster Pro ARMS Test](assets/GM_CUSTOM.jpg)
 
 *The mJS engine reproduces the physical Enemalta invoice to the cent.*
 
@@ -209,7 +255,7 @@ The application instantiates and updates **9 interconnected virtual components**
 | **Financial Status** ![Financial VC](assets/GM_VC_FINANCIAL.jpg) | Label | Full cost breakdown — tiers, service charge, discount. |
 | **Bill Calculator** ![Calculator VC](assets/GM_VC_CALC.jpg) | Input field | Interactive terminal for raw consumption queries. |
 
-### Bill Calculator usage
+### Bill Calculator Usage
 
 Write to the calculator field in `kWh_days` format — e.g. `350_30` calculates the cost of $350 \text{ kWh}$ consumed over $30 \text{ days}$, pro-rated on-device.
 
@@ -245,8 +291,10 @@ Shelly_GridMaster/
 ├── GridMaster_Pro_Setup.js         # Provisioning / installer utility
 ├── README.md
 └── assets/
+    ├── GM_UI.jpg                   # Hero — GridMaster Pro ARMS dashboard
     ├── GM_OVERVIEW.png             # System architecture & boot-logic diagram
     ├── GM_BILL_EXAMPLE.jpg         # Enemalta invoice validation reference
+    ├── GM_CUSTOM.jpg               # Bill calculator validation screenshot
     ├── GM_VC_VIEW.jpg              # VC — view selector
     ├── GM_VC_LIVE.jpg              # VC — live power
     ├── GM_VC_TRACKER.jpg           # VC — eco-tracker (energy + daily average)
@@ -262,14 +310,20 @@ Shelly_GridMaster/
 
 ## ⚖️ License & Attribution
 
-Developed by **SPARK_LABS** in partnership with **Recowatt Malta** — Official Shelly Distributor.
+Developed by **⚡ SPARK_LABS**.
 
 ### Acknowledgements
 
-This project would not exist without the tools, documentation, and community that power the Shelly ecosystem:
-
 * **[Shelly](https://www.shelly.com/)** — for the hardware platform, the mJS scripting engine, and the virtual-component framework that makes on-device UI possible.
-* **[Shelly Academy](https://academy.shelly.com/)** — for the scripting tutorials, API walkthroughs, and worked examples that informed the architectural patterns used here.
-* **Icons** — UI and diagram iconography sourced from [<!-- icon source, e.g. Flaticon / Shelly native assets / etc. -->]. Attribution: [<!-- author / license line -->].
+* **[Shelly Academy](https://academy.shelly.com/)** — for the scripting courses and API walkthroughs that informed the patterns used across all SPARK_LABS projects.
+* **Icons** — UI component icons sourced from [Icons8](https://icons8.com) (`https://img.icons8.com`).
 
-*Built Local. Built Private. Built Powerful.*
+---
+
+**⚡ SPARK_LABS** — **S**helly **P**owered **A**utomation **R**eliable **K**ontrol
+
+Technician, Installer & Shelly Academy Graduate at [Recowatt Malta](https://recowatt.com)
+
+[github.com/Nc-eW22](https://github.com/Nc-eW22)
+
+*Turning everyday Shelly devices into truly smart virtual appliances.*
