@@ -93,7 +93,7 @@ function bootStep3_LoadMem() {
                 if (!Array.isArray(MEM.hist)) MEM.hist = [];
                 lastSavedKwh = MEM.m;
                 console.log('   ↳ MEM state recovered safely: m=' + MEM.m.toFixed(1) + ' d=' + MEM.d.toFixed(1) + ' hist=' + MEM.hist.length);
-                Timer.set(500, false, bootStep6_AcquireHandles);
+                Timer.set(500, false, bootStep3b_RefreshToday);
                 return;
             }
         } catch(e) {
@@ -103,7 +103,43 @@ function bootStep3_LoadMem() {
     console.log('   ↳ Persistent memory registry empty. Seeding procedure mandatory.');
     Timer.set(500, false, bootStep4_StartSeed);
 }
+function bootStep3b_RefreshToday() {
+    console.log('🔄 [3b] Refreshing Today from device hourly log...');
+    let now = new Date();
+    let ts = Math.round(new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).getTime() / 1000) - UTC_OFFSET;
+    ts = ts - (ts % 3600);
+    Shelly.call('EM1Data.GetNetEnergies', { id:0, ts:ts, period:3600, end_ts:ts + 86400 }, bootStep3b_RefreshTodayDone);
+}
 
+function bootStep3b_RefreshTodayDone(res, err) {
+    if (err !== 0 || res === null || !res.data || res.data.length === 0) {
+        console.log('   ↳ No hourly data available for today yet — keeping persisted MEM.d');
+        Timer.set(500, false, bootStep6_AcquireHandles);
+        return;
+    }
+    let actualToday = 0;
+    try {
+        for (let b = 0; b < res.data.length; b++) {
+            let v = res.data[b].values;
+            if (!v) continue;
+            for (let i = 0; i < v.length; i++) {
+                if (v[i] && v[i][0] !== null) actualToday += v[i][0] / 1000.0;
+            }
+        }
+    } catch(e) {
+        console.log('   ↳ ⚠️ Refresh parse error: ' + (e.message || e));
+        Timer.set(500, false, bootStep6_AcquireHandles);
+        return;
+    }
+    let staleToday = MEM.d;
+    let gap = actualToday - staleToday;
+    MEM.d = actualToday;
+    MEM.m = MEM.m + gap;
+    console.log('   ↳ Today: was ' + staleToday.toFixed(2) + ' kWh → now ' + actualToday.toFixed(2) + ' kWh (gap ' + gap.toFixed(2) + ' kWh added to month)');
+    recalcWeek();
+    saveMemoryToFlash(true);
+    Timer.set(500, false, bootStep6_AcquireHandles);
+}
 function bootStep4_StartSeed() {
     console.log('🌱 [4/7] Initiating 30-day sequential seeding lookback from hardware logs...');
     let c = new Date();
@@ -354,7 +390,7 @@ function chkRollover(nd, totWh) {
         if (H !== null) updHint(); 
     }
     if (MEM.lm !== m && MEM.lm !== -1) {
-        let p = new Date(nd.getTime()); p.setDate(0);
+        let p = new Date(nd.getTime() - 86400000); // 24h back = last day of previous month
         let archiveTotal = MEM.m;
         let archiveDays = p.getDate();
         let archiveKey = C.KP + MEM.lm;
@@ -403,7 +439,11 @@ function updHint() {
     let nm = new Date().getMonth();
     if (v === 'Custom') setHint('Units_Days');
     else if (v === 'Today') setHint(todayStr());
-    else if (v === 'Month' || v === 'Last Month') setHint(MS[nm]);
+    else if (v === 'Month') setHint(MS[nm]);
+    else if (v === 'Last Month') {
+        let lm = nm - 1; if (lm < 0) lm = 11;
+        setHint(MS[lm]);
+}
     else if (v === 'Year to Date') setHint('Jan-Today');
     else if (v === '12 Months') setHint(MS[nm] + '-Today');
     else setHint('—');
